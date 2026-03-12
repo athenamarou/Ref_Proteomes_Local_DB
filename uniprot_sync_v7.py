@@ -1,10 +1,10 @@
 """
-UniProt Reference Proteome Pipeline — v8
+UniProt Reference Proteome Pipeline -v7
 =========================================
 Downloads, parses, and loads UniProt reference proteomes (.tar.gz archive)
 into a versioned MySQL database with sequence deduplication.
 
-v8 Changes from v7:
+v7 Changes from v6:
 ────────────────────
 1. BULK sequence deduplication — replaces per-protein SELECT with per-BATCH
 queries. This is the single biggest speedup (~10-50x on DB operations).
@@ -18,15 +18,7 @@ then re-joining it.
 4. Progress reporting — prints rate (proteins/sec), cache size, and
 proteome count every 30 seconds so you can monitor long runs.
 
-5. Larger default batch size (50 000 vs 5 000 in v6 / 20 000 in v7).
-
-Performance tip:
-────────────────
-If the Synology NAS has a weak CPU (Celeron / ARM), consider running this
-script on your Mac and pointing DB_HOST in .env to the NAS IP.  Python's
-gzip decompression and BioPython parsing are CPU-bound and will be 5-10×
-faster on a modern laptop.  Network latency for the SQL inserts is
-comparable to local access on a NAS.
+5. Larger default batch size.
 
 Usage:
     python uniprot_sync_v8.py -version 2026_01
