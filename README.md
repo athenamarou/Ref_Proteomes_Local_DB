@@ -1,10 +1,10 @@
-# 🧬 UniProt Reference Proteome Pipeline
+# UniProt Reference Proteome Pipeline
 
 A high-performance toolkit for downloading, parsing, and querying **UniProt Reference Proteomes** into a versioned local MySQL database. Designed for bioinformatics labs running self-hosted infrastructure (e.g. Synology NAS + MySQL).
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
