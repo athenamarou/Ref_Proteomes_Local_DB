@@ -4,7 +4,7 @@
 
 This repository contains two scripts for building and querying a local versioned MySQL database of UniProt canonical reference proteomes.
 
-- `uniprot_sync_v9.py` — Downloads, parses, and loads a full UniProt reference proteome release into the database.
+- `uniprot_sync_v8.py` — Downloads, parses, and loads a full UniProt reference proteome release into the database.
 - `get_reference_uniprot_set_v5.py` — Retrieves protein sets from the database with flexible filtering options.
 
 The database stores canonical sequences only (no isoforms), normalized across 9 relational tables with sequence deduplication, GO term and Pfam domain annotations, and full version tracking across UniProt releases.
