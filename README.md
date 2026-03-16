@@ -1,37 +1,90 @@
-# UniProt Reference Proteome Pipeline
+# README
 
-A toolkit for downloading, parsing, and querying **UniProt Reference Proteomes** into a versioned local MySQL database. Designed for bioinformatics labs running self-hosted infrastructure (e.g. Synology NAS + MySQL).
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Database Schema](#database-schema)
-- [Usage](#usage)
-  - [Sync Pipeline](#1-sync-pipeline--uniprot_sync)
-  - [Retrieval Tool](#2-retrieval-tool--get_reference_uniprot_set)
-- [Performance Notes](#performance-notes)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
+A two-script pipeline for downloading, parsing, and querying versioned **UniProt reference proteomes** into a versioned local MySQL database. Designed for bioinformatics labs
+running self-hosted infrastructure (e.g. Synology NAS + MySQL).
 
 ---
 
 ## Overview
 
-This pipeline automates the full lifecycle of UniProt reference proteome data:
+The pipeline consists of two independent tools:
 
-1. **Downloads** the versioned `.tar.gz` archive from the UniProt FTP server
-2. **Parses** all canonical `.dat.gz` proteome files (SwissProt flat-file format), extracting protein metadata, sequences, GO terms, and Pfam domain annotations
-3. **Loads** everything into a normalized, versioned MySQL database with sequence deduplication
-4. **Queries** allow flexible retrieval of protein sets by version, taxonomy, proteome ID, GO term, or Pfam domain — exported as FASTA files
+- **`uniprot_sync_v7.py`** — downloads the UniProt reference proteome archive and streams it into a local MySQL database.
+- **`get_reference_uniprot_set_v4.py`** — retrieves protein sets from that database with flexible filters and exports them as FASTA files.
 
-Supports multiple UniProt release versions side-by-side (e.g. `2025_05`, `2026_01`), making it easy to track changes across releases.
+The database schema is versioned, meaning multiple UniProt releases can coexist in the same instance without overwriting previous data. Sequence storage uses MD5-based deduplication so identical sequences shared across proteomes or versions are stored only once.
+
+---
+
+## Infrastructure
+
+| Component | Role | Path |
+| --- | --- | --- |
+| Synology NAS | Stores the `.tar.gz` archive | `/mnt/.../Uniprot/` |
+| Server (`/var/`) | Runs MySQL; houses the database | configured via `.env` |
+| `.env` file | Holds DB credentials | see setup below |
+
+The sync script reads the archive from the NAS mount and writes parsed data to the MySQL instance on the server. Both scripts connect to MySQL using credentials from a shared `.env` file.
+
+---
+
+## Requirements
+
+- Python 3.8+
+- MySQL 8.0+
+- BioPython (`biopython`)
+- `mysql-connector-python`
+- `python-dotenv`
+- `requests`
+
+Install dependencies:
+
+```bash
+pip install biopython mysql-connector-python python-dotenv requests
+```
+
+---
+
+## Configuration
+
+Create a `.env` file in the same directory as both scripts:
+
+```
+DB_HOST=192.168.1.100       # MySQL host (IP or hostname)
+DB_USER=uniprot_user        # MySQL username
+DB_PASSWORD=your_password   # MySQL password
+DB_NAME=uniprot_db          # Target database name
+```
+
+The sync script also reads two hardcoded paths at the top of the file that should match your NAS mount:
+
+```bash
+BASE_PATH = "/mnt/.../Uniprot/"
+LOCAL_DATA_FILE = os.path.join(BASE_PATH, "Reference_Proteomes_2026_01.tar.gz")
+```
+
+---
+
+## Database Schema
+
+The pipeline creates 8 tables in the correct foreign-key dependency order. All `CREATE TABLE` statements use `IF NOT EXISTS`, so the schema initialisation is idempotent. Sequence deduplication is handled automatically — identical sequences across proteomes share a single row in the `sequences` table, reducing storage significantly.
+
+**Database Schema**
+
+```
+sequences         — deduplicated amino-acid sequences (MD5 hash, auto-increment seq_id)
+proteomes         — one row per reference proteome (UP-prefixed ID → taxon_id)
+proteins          — versioned protein metadata; PRIMARY KEY (accession, version)
+sequence_changes  — records when a protein's sequence changes between versions
+go_terms          — Gene Ontology master table (go_id, go_name, namespace, definition)
+protein_go        — protein ↔ GO term links, version-specific
+pfam_domains      — Pfam domain master table (pfam_id, pfam_name, description)
+protein_pfam      — protein ↔ Pfam domain links with positional and e-value data
+```
+
+Foreign key relationships:
+
+![image.png](attachment:7fda8b16-eedf-41b4-8a96-2f8774bd865a:image.png)
 
 ---
 
@@ -39,116 +92,52 @@ Supports multiple UniProt release versions side-by-side (e.g. `2025_05`, `2026_0
 
 ```
 UniProt FTP
-    │
-    ▼
+│
+▼
 UniProtDownloader          ← streams Reference_Proteomes_XXXX_XX.tar.gz
-    │
-    ▼
+│
+▼
 UniprotParser              ← parses .dat.gz flat files (BioPython + line scan)
-    │                         extracts: proteins, GO terms, Pfam domains
-    ▼
+│                         extracts: proteins, GO terms, Pfam domains
+▼
 DataBaseManager            ← bulk upserts into 8-table MySQL schema
-    │                         sequence deduplication via SHA-256 hash
-    ▼
+│                         sequence deduplication via SHA-256 hash
+▼
 MySQL Database
-    │
-    ▼
+│
+▼
 UniProtRetriever           ← flexible query interface → FASTA export
 ```
 
 ---
 
-## Requirements
-
-- Python 3.9+
-- MySQL 8.0+ (local or remote, e.g. Synology NAS)
-- ~50 GB disk space per UniProt release (tar.gz ~25 GB + DB)
-
-### Python Dependencies
-
-```
-biopython>=1.81
-mysql-connector-python>=8.0
-requests>=2.28
-python-dotenv>=1.0
-```
-
-See [`requirements.txt`](requirements.txt) for pinned versions.
-
----
-
-## Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/uniprot-proteome-pipeline.git
-cd uniprot-proteome-pipeline
-
-# 2. Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment variables
-cp .env.example .env
-# Edit .env with your database credentials
-```
-
----
-
-## Configuration
-
-Create a `.env` file in the project root (never commit this file):
-
-```dotenv
-DB_HOST=192.168.1.100       # MySQL host (IP or hostname)
-DB_USER=uniprot_user        # MySQL username
-DB_PASSWORD=your_password   # MySQL password
-DB_NAME=uniprot_db          # Target database name
-```
-
-A `.env.example` template is included in the repository.
-
-> **Synology NAS users:** Set `DB_HOST` to your NAS's local IP. See [Performance Notes](#performance-notes) for tips on running the pipeline remotely against a NAS-hosted database.
-
----
-
-## Database Schema
-
-The pipeline uses an **8-table normalized schema**:
-
-| Table | Description |
-|---|---|
-| `proteins` | Core protein metadata (accession, name, organism, taxon_id, proteome_id, version) |
-| `sequences` | Deduplicated amino acid sequences keyed by SHA-256 hash (`seq_id`) |
-| `protein_go` | Many-to-many: proteins ↔ Gene Ontology terms |
-| `protein_pfam` | Many-to-many: proteins ↔ Pfam domain annotations (with position + e-value) |
-| *(+ 4 supporting tables)* | Indexes, versioning metadata, etc. |
-
-Sequence deduplication is handled automatically — identical sequences across proteomes share a single row in the `sequences` table, reducing storage significantly.
-
----
-
 ## Usage
 
-### 1. Sync Pipeline — `uniprot_sync`
-
-Downloads and loads a specific UniProt release into the database.
+### 1. Sync a UniProt version
 
 ```bash
-# Basic sync (downloads if not present, skips if version already in DB)
+#Basic sync (downloads if not present, skips if version already in DB)
 python uniprot_sync.py -version 2026_01
 
-# Force re-sync even if version already exists
+#Force re-sync even if version already exists
 python uniprot_sync.py -version 2026_01 --force
 
-# Tune batch size for your hardware (default: 50,000)
+#Tune batch size for your hardware (default: 50,000)
 python uniprot_sync.py -version 2026_01 --batch-size 100000
 ```
 
-**Example output:**
+If the archive already exists at the configured NAS path, the download step is skipped and parsing begins immediately. If the version already exists in the database, the script exits early unless `--force` is passed.
+
+**Options:**
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-version` | required | UniProt release string, e.g. `2026_01` |
+| `--batch-size` | 50000 | Number of records committed per database transaction |
+| `--force` | off | Re-sync even if this version already exists in the database |
+
+**Progress output** (printed every 30 seconds during a long run):
+
 ```
 ============================================================
 UniProt Reference Proteome Pipeline v8 — 2026_01
@@ -161,6 +150,11 @@ Streaming from 2026_01 archive...
   [0:05:30] Proteomes: 420 | Proteins: 1,250,000 | Rate: 3,800/sec | Cache: 94,230 | Current: UP000005640
   ...
 
+```
+
+**Final summary on completion Example:**
+
+```
 ============================================================
 Pipeline Completed Successfully
 ============================================================
@@ -174,13 +168,15 @@ Pipeline Completed Successfully
 ============================================================
 ```
 
+A log entry is written to `update_history.log` in `BASE_PATH` on both success and failure.
+
 ---
 
-### 2. Retrieval Tool — `get_reference_uniprot_set`
-
-Query the database and export protein sets as FASTA files.
+### 2. Retrieve a protein set
 
 ```bash
+python get_reference_uniprot_set_v4.py -version 2026_01 [filters]
+
 # List all available versions in your database
 python get_reference_uniprot_set.py -version 2026_01 --list-versions
 
@@ -206,60 +202,57 @@ python get_reference_uniprot_set.py -version 2026_01 --pfam-id PF00870
 python get_reference_uniprot_set.py -version 2026_01 -taxonomy 9606 --pfam-id PF00069
 ```
 
-Output is a `.fasta` file named `uniprot_<identifier>_<version>.fasta` in the current directory.
+**Output:** A FASTA file in the current directory. Filename format: `uniprot_<identifier>_<version>.fasta`
 
-**FASTA header format:**
+FASTA header format:
+
 ```
->P04637 Cellular tumor antigen p53 OX=9606 UP=UP000005640
+>P04637 P53_HUMAN OX=9606 UP=UP000005640
 ```
+
+---
 
 ---
 
 ## Performance Notes
 
-| Scenario | Estimated Time | Notes |
-|---|---|---|
-| Full sync, local MySQL | ~2–3 hours | Modern laptop/desktop |
-| Full sync, NAS-hosted MySQL | ~4–6 hours | CPU bottleneck is gzip + BioPython parsing |
-| Full sync, NAS CPU (ARM/Celeron) | ~12–24 hours | Run pipeline on Mac/PC, point DB_HOST to NAS |
-
-**Recommended:** If your NAS has a weak CPU, run `uniprot_sync.py` on your laptop with `DB_HOST` pointing to the NAS IP. Python decompression and parsing are CPU-bound; SQL inserts over LAN add minimal latency.
-
-**Batch size tuning:**
-- Low RAM machine: `--batch-size 10000`
-- Default (16 GB+ RAM): `--batch-size 50000`
-- High-memory server: `--batch-size 100000`
+- The sync script uses bulk MySQL session tuning (`foreign_key_checks = 0`, `unique_checks = 0`) during the load, which provides roughly 2–5x faster insert throughput. These are session-level changes and do not affect other connections.
+- Sequence deduplication uses an in-memory MD5 hash cache (up to 100 million entries) to avoid redundant database round-trips. Batch lookups are chunked at 10,000 hashes per query to stay within MySQL packet limits.
+- If the NAS CPU is a Celeron or ARM-based processor, running the sync script on a workstation and pointing `DB_HOST` in `.env` at the server IP will substantially improve parsing speed, as gzip decompression and BioPython parsing are CPU-bound.
 
 ---
 
-## Project Structure
+## File Structure
 
 ```
-uniprot-proteome-pipeline/
-├── uniprot_sync.py              # Sync pipeline (download + parse + load)
-├── get_reference_uniprot_set.py # Query + FASTA export tool
-├── requirements.txt
-├── .env.example                 # Environment variable template
-├── .gitignore
+.
+├── uniprot_sync_v7.py              # Sync pipeline
+├── get_reference_uniprot_set_v4.py # Retrieval tool
+├── .env                            # DB credentials (not committed)
 └── README.md
 ```
 
----
+The NAS archive and log file are stored outside this repository:
 
-## Contributing
-
-Contributions are welcome! Please open an issue to discuss proposed changes before submitting a pull request.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes (`git commit -m 'Add my feature'`)
-4. Push to the branch (`git push origin feature/my-feature`)
-5. Open a Pull Request
+```
+/mnt/cglab.shared/Data/DBs/Uniprot/
+├── Reference_Proteomes_2026_01.tar.gz
+└── update_history.log
+```
 
 ---
 
-## License
+## Notes on the Archive Layout
 
-This project is licensed under the **MIT License** — see [`LICENSE`](LICENSE) for details.
+The UniProt reference proteome archive is organised as:
 
-**Data attribution:** UniProt data is provided by the [UniProt Consortium](https://www.uniprot.org/) under the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) license. © 2002–2026 UniProt Consortium.
+```
+Archaea/UP000000242/UP000000242_2234.dat.gz
+Bacteria/UP000001234/UP000001234_83333.dat.gz
+Eukaryota/UP000005640/UP000005640_9606.dat.gz
+...
+```
+
+The sync script streams only canonical sequence files (`.dat.gz`), skipping `_additional` files (isoforms) and macOS metadata prefixes (`._`).
+
+---
