@@ -83,7 +83,7 @@ protein_pfam      — protein ↔ Pfam domain links with positional and e-value 
 ```
 
 Foreign key relationships:
-
+```mermaid
 erDiagram
   sequences {
     int seq_id PK
@@ -152,7 +152,7 @@ erDiagram
   go_terms ||--o{ protein_go : "go_id"
   proteins ||--o{ protein_pfam : "accession+version"
   pfam_domains ||--o{ protein_pfam : "pfam_id"
-
+```
 ---
 
 ## Architecture
