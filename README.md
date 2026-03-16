@@ -168,7 +168,7 @@ UniprotParser              ← parses .dat.gz flat files (BioPython + line scan)
 │                         extracts: proteins, GO terms, Pfam domains
 ▼
 DataBaseManager            ← bulk upserts into 8-table MySQL schema
-│                         sequence deduplication via SHA-256 hash
+│                         sequence deduplication via MD5 hash
 ▼
 MySQL Database
 │
