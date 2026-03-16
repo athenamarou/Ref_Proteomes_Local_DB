@@ -84,7 +84,74 @@ protein_pfam      — protein ↔ Pfam domain links with positional and e-value 
 
 Foreign key relationships:
 
-![](proteome_schema_erd.html)
+erDiagram
+  sequences {
+    int seq_id PK
+    char md5_hash
+    text sequence
+  }
+  proteomes {
+    varchar proteome_id PK
+    int taxon_id
+    varchar scientific_name
+    varchar assembly
+  }
+  proteins {
+    varchar accession PK
+    int version PK
+    int seq_id FK
+    varchar proteome_id FK
+    varchar gene_name
+    varchar protein_name
+    int length
+    timestamp updated_at
+  }
+  sequence_changes {
+    int change_id PK
+    varchar accession FK
+    int old_version
+    int new_version
+    int old_seq_id FK
+    int new_seq_id FK
+    timestamp changed_at
+  }
+  go_terms {
+    varchar go_id PK
+    varchar go_name
+    varchar namespace
+    text definition
+  }
+  protein_go {
+    varchar accession FK
+    int version FK
+    varchar go_id FK
+    varchar evidence_code
+    varchar source
+  }
+  pfam_domains {
+    varchar pfam_id PK
+    varchar pfam_name
+    text description
+    varchar clan_id
+  }
+  protein_pfam {
+    varchar accession FK
+    int version FK
+    varchar pfam_id FK
+    int seq_start
+    int seq_end
+    float e_value
+    float bit_score
+  }
+
+  proteomes ||--o{ proteins : "contains"
+  sequences ||--o{ proteins : "seq_id"
+  proteins ||--o{ sequence_changes : "accession"
+  sequences ||--o{ sequence_changes : "old_seq_id"
+  proteins ||--o{ protein_go : "accession+version"
+  go_terms ||--o{ protein_go : "go_id"
+  proteins ||--o{ protein_pfam : "accession+version"
+  pfam_domains ||--o{ protein_pfam : "pfam_id"
 
 ---
 
