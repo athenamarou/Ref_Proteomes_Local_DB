@@ -4,7 +4,6 @@ UniProt Reference Proteome Pipeline -v7
 Downloads, parses, and loads UniProt reference proteomes (.tar.gz archive)
 into a versioned MySQL database with sequence deduplication.
 
-v7 Changes from v6:
 ────────────────────
 1. BULK sequence deduplication — replaces per-protein SELECT with per-BATCH
 queries. This is the single biggest speedup (~10-50x on DB operations).
@@ -19,10 +18,10 @@ then re-joining it.
 proteome count every 30 seconds so you can monitor long runs.
 
 5. Larger default batch size.
-
+────────────────────
 Usage:
-    python uniprot_sync_v8.py -version 2026_01
-    python uniprot_sync_v8.py -version 2026_01 --batch-size 100000 --force
+    python uniprot_sync_v7.py -version 2026_01
+    python uniprot_sync_v7.py -version 2026_01 --batch-size 100000 --force
 """
 
 import requests
@@ -42,7 +41,7 @@ import time
 
 
 # ─── SYNOLOGY PATHS ────────────────────────────────────────────
-BASE_PATH = "/mnt/cglab.shared/Data/DBs/Uniprot/"
+BASE_PATH = "/mnt/.../Uniprot/"
 LOG_FILE = os.path.join(BASE_PATH, "update_history.log")
 LOCAL_DATA_FILE = os.path.join(BASE_PATH, "Reference_Proteomes_2026_01.tar.gz")
 
@@ -643,9 +642,9 @@ class DataBaseManager:
         """
         Insert a batch of protein records into all relevant tables.
 
-        v8 change: calls get_or_create_sequences_bulk() to resolve all
+        v7 change: calls get_or_create_sequences_bulk() to resolve all
         sequence → seq_id mappings in 2–3 queries, instead of one query
-        per protein (v6) or one query per cache-miss (v7).
+        per protein or one query per cache-miss.
 
         Insertion order respects FK dependencies:
             sequences → proteomes → proteins → protein_go / protein_pfam
@@ -835,7 +834,7 @@ def main():
 
     start_time = datetime.datetime.now()
     print(f"\n{'='*60}")
-    print(f"UniProt Reference Proteome Pipeline v8 — {args.version}")
+    print(f"UniProt Reference Proteome Pipeline v7 — {args.version}")
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Batch size: {args.batch_size:,}")
     print(f"{'='*60}\n")
