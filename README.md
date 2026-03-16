@@ -84,7 +84,7 @@ protein_pfam      — protein ↔ Pfam domain links with positional and e-value 
 
 Foreign key relationships:
 
-![image.png](attachment:7fda8b16-eedf-41b4-8a96-2f8774bd865a:image.png)
+proteome_schema_erd.html
 
 ---
 
