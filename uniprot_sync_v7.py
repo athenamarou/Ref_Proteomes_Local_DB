@@ -214,11 +214,8 @@ class UniprotParser:
         """
         Parse a single proteome's .dat file and yield protein records.
 
-        v8 improvement: We call handle.read() once to get the full text,
-        then split it for annotation scanning and wrap in StringIO for
-        BioPython.  v6/v7 called readlines() and then re-joined the
-        list with "".join(lines), which created two full copies of the
-        data in memory.
+        handle.read() once to get the full text, then split it for
+        annotation scanning and wrap in StringIO for BioPython.  
 
         Individual proteome .dat files range from a few KB (viruses with
         1-3 proteins) to ~100 MB (large eukaryotes like wheat with
