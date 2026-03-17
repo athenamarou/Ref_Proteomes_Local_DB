@@ -186,12 +186,12 @@ def main():
 
     args = parser.parse_args()
 
-    # Load DB Config
+    # Load DB Config with also Read-Only Defaults for the Lab
     DB_CONFIG = {
-        "host": os.getenv("DB_HOST"),
-        "user": os.getenv("DB_USER"),
-        "password": os.getenv("DB_PASSWORD"),
-        "database": os.getenv("DB_NAME"),
+        "host": os.getenv("DB_HOST", "localhost"),
+        "user": os.getenv("DB_USER", "cglab_user"),
+        "password": os.getenv("DB_PASSWORD", "lab_password"),
+        "database": os.getenv("DB_NAME", "uniprot_db_cglab"),
     }
 
     retriever = UniProtRetriever(DB_CONFIG)
