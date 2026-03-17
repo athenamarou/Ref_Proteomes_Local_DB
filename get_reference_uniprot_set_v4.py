@@ -129,7 +129,8 @@ class UniProtRetriever:
         try:
             with open(filename, "w") as f:
                 for rec in records:
-                    header = f">{rec['accession']} {rec['name']} OX={rec['taxon_id']} UP={rec['proteome_id']}"
+                    #header = f">{rec['accession']} {rec['name']} OX={rec['taxon_id']} UP={rec['proteome_id']}"
+                    header = f">{rec['taxon_id']}.{rec['accession']}"
                     f.write(f"{header}\n{rec['sequence']}\n")
             print(f"✓ Exported {len(records):,} sequences to {filename}")
         except Exception as e:
