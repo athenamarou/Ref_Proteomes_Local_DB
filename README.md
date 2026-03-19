@@ -56,6 +56,43 @@ DB_PASSWORD=your_password   # MySQL password
 DB_NAME=uniprot_db          # Target database name
 ```
 
+For read only rights for the team , a new user can be created and then access the database like this:
+
+```
+mysql -u cglab_user -p​
+```
+
+To create the new user the config block inside get_reference_set.py script can be updated like this:
+
+# Load DB Config with Read-Only Defaults for the Lab
+```python
+    DB_CONFIG = {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "user": os.getenv("DB_USER", "new_user"),
+        "password": os.getenv("DB_PASSWORD", "lab_password"), # Change to your actual lab password
+        "database": os.getenv("DB_NAME", "uniprot_db"),
+    }
+
+    retriever = UniProtRetriever(DB_CONFIG)
+
+    try:
+        retriever.connect()
+```
+
+In SQL, connect as root and proceed:
+
+```sql
+CREATE USER 'cglab_user'@'localhost' IDENTIFIED BY 'lab_password';
+GRANT SELECT ON uniprot_db_cglab.* TO 'cglab_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+The read-only users can connect in the database like this, by giving the password:
+
+```sql
+mysql -u cglab_user -p
+```
+
 The sync script also reads two hardcoded paths at the top of the file that should match your NAS mount:
 
 ```bash
