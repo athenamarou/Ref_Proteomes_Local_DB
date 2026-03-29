@@ -19,6 +19,10 @@ import psutil
 
 import gc
 
+import threading
+
+import queue
+
 # ======================================
 #           CONFIGURATION
 # ======================================
@@ -370,34 +374,92 @@ def main():
     rate = 0
     start_time = time.time()
 
-    while True:
-        rows = streamer.stream_chunk_to_memory(chunk_size)
-        if not rows:
-            break
+    # ── Three queues act as buffers between pipeline stages.
+    # maxsize=2 is intentional backpressure: if inserter falls behind,
+    # searcher blocks before fetching a 3rd chunk, capping memory usage
+    # at roughly 3 chunks in flight simultaneously (~75k sequences at 25k chunk size).
+    fetch_q = queue.Queue(maxsize=2)
+    insert_q = queue.Queue(maxsize=2)
 
-        # Memory guard
-        mem = psutil.virtual_memory()
-        if mem.percent > 85:
+    def fetcher():
+        # Runs independently of search/insert — keeps fetch_q pre-loaded
+        # so pyhmmer never waits on MySQL. One lightweight I/O thread.
+        while True:
+            rows = streamer.stream_chunk_to_memory(chunk_size)
+            fetch_q.put(rows)  # blocks here if fetch_q is full (backpressure working)
+            if not rows:
+                break  # empty list = DB exhausted; sentinel already in queue
+
+    def searcher():
+        # The CPU-heavy stage. pyhmmer internally uses PYHMMER_CPUS threads
+        # to parallelize HMM search — this outer thread just orchestrates
+        # fetching input and forwarding results; it does not add parallelism
+        # to the search itself.
+        while True:
+            rows = fetch_q.get()  # blocks until fetcher has a chunk ready
+            if not rows:
+                insert_q.put(None)  # forward sentinel so inserter knows to stop
+                break
+
+            mem = psutil.virtual_memory()
+            if mem.percent > 85:
+                print(f"WARNING: RAM at {mem.percent:.1f}% — chunk may be too large")
+
+            results = run_pyhmmer_hmmsearch(hmms, rows, num_cpus=PYHMMER_CPUS)
+
+            n = len(rows)
+            last_acc = rows[-1]["accession"]
+            del rows  # release sequence memory before results enter insert_q;
+            gc.collect()  # critical at 25k chunks — avoids two chunks overlapping in RAM
+
+            insert_q.put((results, n, last_acc))
+
+    def inserter():
+        nonlocal total_processed  # shares the counter with main thread for progress reporting
+        while True:
+            item = insert_q.get()  # blocks until searcher has results ready
+            if item is None:
+                break  # clean exit — sentinel received, all chunks processed
+
+            results, n, last_acc = item
+            importer.import_list_to_mysql(results)
+
+            # Checkpoint the accession belonging to this chunk specifically,
+
+            streamer.last_accession = last_acc
+            streamer._save_checkpoint()
+
+            del results  # free result memory immediately after commit
+            gc.collect()  # insert_q maxsize=2 means up to 2 result sets could sit here
+
+            total_processed += n
+            elapsed = time.time() - start_time
+            rate = total_processed / elapsed if elapsed > 0 else 0
+            mem = psutil.virtual_memory()
             print(
-                f"WARNING: RAM at {mem.percent:.1f}% — consider reducing chunk size or HMM batch"
+                f"Processed {total_processed:,} proteins... ({rate:,.0f} seq/s) "
+                f"| RAM: {mem.percent:.1f}% ({mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB)"
             )
 
-        results = run_pyhmmer_hmmsearch(hmms, rows, num_cpus=PYHMMER_CPUS)
-        importer.import_list_to_mysql(results)
-        streamer._save_checkpoint()
+    # fetcher and searcher are daemon threads — if main crashes they die automatically.
+    # inserter is NOT daemon: even on interrupt, Python waits for it to finish
+    # the current commit so you don't end up with a partial chunk in the DB.
+    t1 = threading.Thread(target=fetcher, daemon=True)
+    t2 = threading.Thread(target=searcher, daemon=True)
+    t3 = threading.Thread(target=inserter)
 
-        # Force Python to release memory back to OS
-        del results
-        total_processed += len(rows)
-        del rows
-        gc.collect()
+    t1.start()
+    t2.start()
+    t3.start()
 
-        elapsed = time.time() - start_time
-        rate = total_processed / elapsed if elapsed > 0 else 0
-        mem = psutil.virtual_memory()
-        print(
-            f"Processed {total_processed:,} proteins... ({rate:,.0f} seq/s) | RAM: {mem.percent:.1f}% ({mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB)"
-        )
+    # join() blocks main until each thread exits cleanly.
+    # Order matters: t1 → t2 → t3 mirrors data flow,
+    # so if you're debugging a hang you know which join() is stuck.
+    t1.join()
+    t2.join()
+    t3.join()
+
+    print(f"\nDone. Total processed: {total_processed:,}")
 
 
 if __name__ == "__main__":
