@@ -2,7 +2,7 @@
 
 A script that integrates **MySQL** queries and **pyHMMER** to perform **hmmsearch** across all the accessions for the local **Reference Proteome** Database built. 
 
-## Requirements
+**Requirements
 
 **📚 Libraries**
 
