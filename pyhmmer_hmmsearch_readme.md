@@ -6,10 +6,12 @@ A script that integrates **MySQL** queries and **pyHMMER** to perform **hmmsearc
 
 **📚 Libraries**
 
+```text
 - pyhmmer
 - mysql-connector-python
 - python-dotenv
 - psutil
+```
 
 Install dependencies:
 
