@@ -129,3 +129,36 @@ Loading HMM profiles from /home/amarougka/uniprot_scripts/hmm_results/hmm_profil
 Resuming from checkpoint: A0A9Q9SG71
 Results table 'hmm_search_results' ready.
 ```
+
+```
+Processed 28,650,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,675,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,700,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,725,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,750,000 proteins... (460 seq/s) | RAM: 14.3% (19.3/134.2 GB)
+Processed 28,775,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,800,000 proteins... (460 seq/s) | RAM: 14.2% (19.1/134.2 GB)
+Processed 28,825,000 proteins... (460 seq/s) | RAM: 14.4% (19.4/134.2 GB)
+Processed 28,850,000 proteins... (460 seq/s) | RAM: 14.4% (19.4/134.2 GB)
+Processed 28,875,000 proteins... (460 seq/s) | RAM: 14.5% (19.4/134.2 GB)
+Processed 28,900,000 proteins... (460 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 28,925,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 28,950,000 proteins... (460 seq/s) | RAM: 14.2% (19.1/134.2 GB)
+Processed 28,975,000 proteins... (460 seq/s) | RAM: 14.3% (19.1/134.2 GB)
+Processed 29,000,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 29,025,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 29,050,000 proteins... (460 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 29,075,000 proteins... (460 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,100,000 proteins... (459 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,125,000 proteins... (459 seq/s) | RAM: 14.3% (19.3/134.2 GB)
+Processed 29,150,000 proteins... (459 seq/s) | RAM: 14.2% (19.1/134.2 GB)
+Processed 29,175,000 proteins... (459 seq/s) | RAM: 14.5% (19.4/134.2 GB)
+Processed 29,200,000 proteins... (459 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 29,225,000 proteins... (459 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,250,000 proteins... (459 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,275,000 proteins... (459 seq/s) | RAM: 14.3% (19.2/134.2 GB)
+Processed 29,300,000 proteins... (459 seq/s) | RAM: 14.3% (19.3/134.2 GB)
+Processed 29,325,000 proteins... (459 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,350,000 proteins... (458 seq/s) | RAM: 14.4% (19.3/134.2 GB)
+Processed 29,375,000 proteins... (458 seq/s) | RAM: 14.4% (19.4/134.2 GB)
+```
