@@ -1,5 +1,7 @@
 ## UniProt Reference Proteome Local Database
 
+‼️**Status: Active Development / Under Optimization**
+
 A two-script pipeline for downloading, parsing, and querying versioned **UniProt reference proteomes** into a versioned local MySQL database. Designed for bioinformatics labs
 running self-hosted infrastructure (e.g. Synology NAS + MySQL).
 
