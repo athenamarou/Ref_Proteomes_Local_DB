@@ -10,7 +10,7 @@ running self-hosted infrastructure (e.g. Synology NAS + MySQL).
 The pipeline consists of two independent tools:
 
 - **`uniprot_sync_v7.py`** — downloads the UniProt reference proteome archive and streams it into a local MySQL database.
-- **`get_reference_uniprot_set_v4.py`** — retrieves protein sets from that database with flexible filters and exports them as FASTA files.
+- **`get_reference_uniprot_set_lib.py`** — retrieves protein sets from that database with flexible filters and exports them as FASTA files.
 
 The database schema is versioned, meaning multiple UniProt releases can coexist in the same instance without overwriting previous data. Sequence storage uses MD5-based deduplication so identical sequences shared across proteomes or versions are stored only once.
 
