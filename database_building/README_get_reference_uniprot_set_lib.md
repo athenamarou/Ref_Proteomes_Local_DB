@@ -2,8 +2,8 @@
 
 ## Overview
 
-A retrieval interface for the **CGLab local UniProt Reference Proteome database**.
-Connects to the local MySQL instance and allows querying of protein sequences from any
+A retrieval script-interface for the **Local UniProt Reference Proteome database**.
+Connects to the local MySQL database and allows querying of protein sequences from any
 loaded UniProt reference proteome release.
 
 The script serves two purposes simultaneously:
@@ -14,7 +14,7 @@ The script serves two purposes simultaneously:
 
 The database contains **133,566,280 canonical proteins** from **34,230 reference proteomes**
 across Bacteria, Eukaryota, Viruses, and Archaea as of release `2026_01`.
-Domain annotations from a complete **Pfam-A hmmsearch** are available for retrieval,
+Domain annotations from a complete **Pfam-A hmmsearch, using pyHMMER** are available for retrieval,
 enabling HMM-based protein set construction directly from the command line or library API.
 
 ---
@@ -243,7 +243,7 @@ with UniProtRetriever(get_db_config()) as db:
     # 3. Write to FASTA for alignment
     db.export_fasta(records, "2026_01", "kinase_bacteria", output_dir="./fastas")
 
-    # 4. Pass seqrecords directly into your alignment/tree pipeline
+    # 4. Pass seqrecords directly into alignment/tree pipeline
     # e.g. with MAFFT via subprocess, or ETE3, or DendroPy
 ```
 
@@ -353,16 +353,10 @@ Successfully retrieved 142,301 sequences.
 ## Notes
 
 - All records returned are plain Python dicts — no special dependencies to access or iterate.
-- `to_biopython()` is the recommended bridge to alignment tools (MUSCLE, MAFFT) and tree-building libraries (ETE3, DendroPy).
+- `to_biopython()` is the recommended bridge to alignment tools (MUSCLE, MAFFT) and tree-building libraries (ETE3).
 - When issuing multiple queries in the same script, always prefer the context manager to avoid connection overhead.
 - The database stores only **canonical sequences**. Isoforms are not present.
 - `get_proteins_by_hmm_hit()` queries `hmm_search_results` which was populated by a full Pfam-A hmmsearch using **gathering thresholds**. Results are therefore already filtered at the profile-specific trusted cutoff — `evalue_cutoff` provides an additional filter on top of that.
 - For large taxon sets, consider filtering by HMM hit or GO term first to reduce the result set before loading sequences into memory.
 
----
-
-## Known Issues
-
-The module docstring context manager example previously referenced the old module name
-`get_reference_uniprot_set_v5`. This has been corrected to `get_reference_uniprot_set_lib`
-in the current version.
+--
