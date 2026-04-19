@@ -1,14 +1,14 @@
 """
 UniProt Reference Set Retrieval Library
 ========================================
-Retrieves protein sequences from the local CGLab UniProt database.
+Retrieves protein sequences from the local UniProt database.
 
 Can be used in two ways:
 
-1. As a command-line tool (unchanged from v4):
+1. As a command-line tool (for quick retrieval without writing custom scripts):
    python get_reference_uniprot_set_lib.py -version 2026_01 -taxonomy 9606 10090
 
-2. As an importable library in your own scripts:
+2. As an importable library in your scripts:
 
    # --- Quickstart (one-liner) ---
    from get_reference_uniprot_set_lib import fetch_sequences
@@ -17,13 +17,21 @@ Can be used in two ways:
    for r in records:
        print(r["accession"], r["organism"])
 
+   # --- HMM hit retrieval (one-liner) ---
+   from get_reference_uniprot_set_lib import fetch_sequences_by_hmm_hit
+
+   records = fetch_sequences_by_hmm_hit(
+       version="2026_01", hmm_query="Homeodomain", taxon_ids=[9606]
+   )
+
    # --- Context manager (recommended for multiple queries) ---
-   from get_reference_uniprot_set_v5 import UniProtRetriever, get_db_config
+   from get_reference_uniprot_set_lib import UniProtRetriever, get_db_config
 
    with UniProtRetriever(get_db_config()) as db:
-       records = db.get_proteins(version="2026_01", taxon_ids=[9606, 10090])
-       fasta_str = db.to_fasta_string(records)       # in-memory FASTA string
-       seqrecords = db.to_biopython(records)          # list of BioPython SeqRecord
+       records    = db.get_proteins(version="2026_01", taxon_ids=[9606, 10090])
+       hmm_recs   = db.get_proteins_by_hmm_hit(version="2026_01", hmm_query="Homeodomain")
+       fasta_str  = db.to_fasta_string(records)       # in-memory FASTA string
+       seqrecords = db.to_biopython(records)           # list of BioPython SeqRecord
        db.export_fasta(records, "2026_01", "mammals", output_dir="./fastas")
 """
 
@@ -35,12 +43,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Public API — what colleagues get when they do `from ... import *`
+# Public API — what users get when they do `from ... import *`
 __all__ = [
     "UniProtRetriever",
     "get_db_config",
     "fetch_sequences",
+    "fetch_sequences_by_hmm_hit",
     "fetch_fasta_string",
+    "fetch_fasta_string_by_hmm_hit",
 ]
 
 
@@ -53,7 +63,7 @@ def get_db_config(host=None, user=None, password=None, database=None):
     Build the database config dict, falling back to environment variables
     and then to the lab defaults.
 
-    Colleagues can override any value when calling this function, or by
+    users can override any value when calling this function, or by
     setting environment variables in a .env file:
         DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 
@@ -68,9 +78,9 @@ def get_db_config(host=None, user=None, password=None, database=None):
     """
     return {
         "host":     host     or os.getenv("DB_HOST",     "localhost"),
-        "user":     user     or os.getenv("DB_USER",     "cglab_user"),
-        "password": password or os.getenv("DB_PASSWORD", "cglab2026"),
-        "database": database or os.getenv("DB_NAME",     "uniprot_db_cglab"),
+        "user":     user     or os.getenv("DB_USER",     "user"),
+        "password": password or os.getenv("DB_PASSWORD", "your_password"),
+        "database": database or os.getenv("DB_NAME",     "uniprot_db"),
     }
 
 
@@ -82,14 +92,23 @@ class UniProtRetriever:
     """
     Retrieves UniProt reference sets from the local CGLab database.
 
-    Supports filtering by TaxID, Proteome ID, Pfam domain, and GO term.
+    Supports filtering by TaxID, Proteome ID, Pfam domain, GO term, and HMM search
+    results from the local Pfam-A hmmsearch conducted by pyhmmer hmmsearch.
+
     Results can be returned as raw dicts, a FASTA string, BioPython
     SeqRecord objects, or written directly to a .fasta file.
 
-    Recommended usage — context manager (handles connect/close for you):
+    Recommended usage — context manager (handles connect/close):
 
         with UniProtRetriever(get_db_config()) as db:
             records = db.get_proteins(version="2026_01", taxon_ids=[9606])
+            seqs = db.to_biopython(records)
+
+        # HMM-based retrieval for tree building:
+        with UniProtRetriever(get_db_config()) as db:
+            records = db.get_proteins_by_hmm_hit(
+                version="2026_01", hmm_query="Homeodomain", taxon_ids=[9606]
+            )
             seqs = db.to_biopython(records)
     """
 
@@ -113,11 +132,6 @@ class UniProtRetriever:
         """
         Open the database connection.
 
-        Raises
-        ------
-        mysql.connector.Error
-            On connection failure (does NOT call sys.exit, so it is safe
-            to catch this in a calling script).
         """
         self.conn   = mysql.connector.connect(**self.config)
         self.cursor = self.conn.cursor(dictionary=True)
@@ -128,14 +142,14 @@ class UniProtRetriever:
             self.cursor.close()
             self.conn.close()
 
-    # Context-manager support — lets colleagues use `with UniProtRetriever(...) as db:`
+    # Context-manager support — in order to be able to use `with UniProtRetriever(...) as db:`
     def __enter__(self):
         self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-        return False   # don't suppress exceptions
+        return False
 
     # ------------------------------------------------------------------
     # Utility queries
@@ -207,7 +221,7 @@ class UniProtRetriever:
         """
         Retrieve protein records from the database.
 
-        All filters are optional and combinable (AND logic).
+        All filters are optional and combinable.
 
         Parameters
         ----------
@@ -276,7 +290,10 @@ class UniProtRetriever:
             return self.cursor.fetchall()
         except mysql.connector.Error as err:
             raise RuntimeError(f"Database query failed: {err}") from err
-    
+
+    # ------------------------------------------------------------------
+    # HMM hit based retrieval
+    # ------------------------------------------------------------------
     def get_proteins_by_hmm_hit(
         self,
         version,
@@ -286,6 +303,16 @@ class UniProtRetriever:
     ):
         """
         Fetch sequences for all proteins with a hit to a given HMM profile.
+        Suitable for phylogenetic tree building pipelines.
+
+        Queries the local hmm_search_results table that contains results from a full
+        Pfam-A hmmsearch using gathering thresholds. Results are already
+        filtered at the profile-specific trusted cutoff. So, evalue_cutoff
+        provides an additional filter on top of that.
+
+        Results are deduplicated: a protein with five Homeodomain repeats
+        appears only once in the output, since only its sequence is needed.
+
         Suitable for phylogenetic tree building pipelines.
 
         Parameters
@@ -305,7 +332,20 @@ class UniProtRetriever:
         list[dict]
             Each dict has keys: accession, name, organism, taxon_id,
             proteome_id, sequence.
+
+        Examples
+        --------
+        # All Homeodomain proteins across all taxa:
+        records = db.get_proteins_by_hmm_hit("2026_01", "Homeodomain")
+
+        # Human + mouse kinases with strict E-value:
+        records = db.get_proteins_by_hmm_hit(
+            "2026_01", "PF00069", evalue_cutoff=1e-10, taxon_ids=[9606, 10090]
+        )
+        seqrecords = db.to_biopython(records)
+        db.export_fasta(records, "2026_01", "kinase_human_mouse", output_dir="./fastas")
         """
+
         # Uses DISTINCT because a protein might have 5 repeating Homeodomains, but we only need to fetch its sequence once.
 
         query = """
@@ -378,10 +418,10 @@ class UniProtRetriever:
         Returns
         -------
         list[Bio.SeqRecord.SeqRecord]
-
-        Raises
-        ------
-        ImportError  if BioPython is not installed
+            Each SeqRecord has:
+            - id          = "{taxon_id}.{accession}"
+            - name        = "{accession}"
+            - description = "{protein_name} [{organism}] UP={proteome_id}"
         """
         try:
             from Bio.Seq      import Seq
@@ -437,13 +477,13 @@ class UniProtRetriever:
         with open(filepath, "w") as f:
             f.write(self.to_fasta_string(records))
 
-        print(f"✓ Exported {len(records):,} sequences → {os.path.abspath(filepath)}")
+        print(f" Exported {len(records):,} sequences → {os.path.abspath(filepath)}")
         return os.path.abspath(filepath)
 
 
 # ---------------------------------------------------------------------------
 # Module-level convenience functions
-# (colleagues can call these without managing a class instance)
+# (users can call these without managing a class instance)
 # ---------------------------------------------------------------------------
 
 def fetch_sequences(
@@ -471,13 +511,11 @@ def fetch_sequences(
 
     Returns
     -------
-    list[dict]
-        Each dict has keys: accession, name, organism, taxon_id,
-        proteome_id, sequence.
+    list[dict]  keys: accession, name, organism, taxon_id, proteome_id, sequence
 
     Example
     -------
-    >>> from get_reference_uniprot_set_v5 import fetch_sequences
+    >>> from get_reference_uniprot_set_lib import fetch_sequences
     >>> records = fetch_sequences("2026_01", taxon_ids=[9606, 10090])
     >>> print(len(records), "proteins retrieved")
     """
@@ -492,6 +530,63 @@ def fetch_sequences(
         )
 
 
+def fetch_sequences_by_hmm_hit(
+    version,
+    hmm_query,
+    evalue_cutoff=1e-5,
+    taxon_ids=None,
+    db_config=None,
+):
+    """
+    One-call helper: connect → query hmm_search_results → disconnect → return records.
+
+    Retrieves sequences for all proteins with a hit to the given Pfam HMM profile.
+    Results are deduplicated — one sequence per protein regardless of domain copy count.
+    Suitable as a direct input to alignment and tree-building pipelines.
+
+    Parameters
+    ----------
+    version : str
+        UniProt release version, e.g. "2026_01".
+    hmm_query : str
+        Pfam name (e.g. "Homeodomain") or accession (e.g. "PF00046").
+        Accession matching is prefix-based so "PF00046" matches "PF00046.36".
+    evalue_cutoff : float, optional
+        Maximum full-sequence E-value. Default: 1e-5.
+    taxon_ids : int or list[int], optional
+        Filter by one or more NCBI Taxonomy IDs.
+    db_config : dict, optional
+        Override connection parameters. Defaults to get_db_config().
+
+    Returns
+    -------
+    list[dict]  keys: accession, name, organism, taxon_id, proteome_id, sequence
+
+    Examples
+    --------
+    >>> from get_reference_uniprot_set_lib import fetch_sequences_by_hmm_hit
+    >>> # All Homeodomain proteins across all taxa
+    >>> records = fetch_sequences_by_hmm_hit("2026_01", "Homeodomain")
+    >>> print(len(records), "proteins retrieved")
+
+    >>> # Human + mouse kinases, strict E-value, pipe into BioPython
+    >>> from get_reference_uniprot_set_lib import UniProtRetriever, get_db_config
+    >>> records = fetch_sequences_by_hmm_hit(
+    ...     "2026_01", "PF00069", evalue_cutoff=1e-10, taxon_ids=[9606, 10090]
+    ... )
+    >>> with UniProtRetriever(get_db_config()) as db:
+    ...     seqrecords = db.to_biopython(records)
+    """
+    config = db_config or get_db_config()
+    with UniProtRetriever(config) as db:
+        return db.get_proteins_by_hmm_hit(
+            version       = version,
+            hmm_query     = hmm_query,
+            evalue_cutoff = evalue_cutoff,
+            taxon_ids     = taxon_ids,
+        )
+
+
 def fetch_fasta_string(
     version,
     taxon_ids=None,
@@ -503,15 +598,13 @@ def fetch_fasta_string(
     """
     One-call helper: connect → query → return a FASTA string.
 
-    Useful when you want to pipe directly into Bio.SeqIO.parse()
-    without writing a file.
+    Useful for piping directly into Bio.SeqIO.parse() without writing a file.
 
     Example
     -------
     >>> import io
     >>> from Bio import SeqIO
-    >>> from get_reference_uniprot_set_v5 import fetch_fasta_string
-    >>>
+    >>> from get_reference_uniprot_set_lib import fetch_fasta_string
     >>> fasta = fetch_fasta_string("2026_01", taxon_ids=[9606])
     >>> seqs = list(SeqIO.parse(io.StringIO(fasta), "fasta"))
     """
@@ -526,9 +619,52 @@ def fetch_fasta_string(
         )
         return db.to_fasta_string(records)
 
+def fetch_fasta_string_by_hmm_hit(
+    version,
+    hmm_query,
+    evalue_cutoff=1e-5,
+    taxon_ids=None,
+    db_config=None,
+):
+    """
+    One-call helper: connect → query hmm_search_results → return a FASTA string.
+
+    Useful for piping HMM-filtered sequences directly into Bio.SeqIO.parse()
+    without writing a file.
+
+    Parameters
+    ----------
+    version : str
+    hmm_query : str   Pfam name or accession
+    evalue_cutoff : float, optional  Default: 1e-5
+    taxon_ids : int or list[int], optional
+    db_config : dict, optional
+
+    Returns
+    -------
+    str  multi-sequence FASTA string
+
+    Example
+    -------
+    >>> import io
+    >>> from Bio import SeqIO
+    >>> from get_reference_uniprot_set_lib import fetch_fasta_string_by_hmm_hit
+    >>> fasta = fetch_fasta_string_by_hmm_hit("2026_01", "Homeodomain", taxon_ids=[9606])
+    >>> seqs = list(SeqIO.parse(io.StringIO(fasta), "fasta"))
+    """
+    config = db_config or get_db_config()
+    with UniProtRetriever(config) as db:
+        records = db.get_proteins_by_hmm_hit(
+            version       = version,
+            hmm_query     = hmm_query,
+            evalue_cutoff = evalue_cutoff,
+            taxon_ids     = taxon_ids,
+        )
+        return db.to_fasta_string(records)
+
 
 # ---------------------------------------------------------------------------
-# CLI  (unchanged behaviour from v4)
+# CLI
 # ---------------------------------------------------------------------------
 
 def _build_parser():
@@ -545,6 +681,8 @@ def _build_parser():
     parser.add_argument("--list-versions", action="store_true", help="List all available versions")
     parser.add_argument("--list-proteomes",action="store_true", help="List proteome IDs for this version")
     parser.add_argument("--output-dir",    default=None, help="Directory for the output FASTA file")
+    parser.add_argument("--hmm-name",  default=None, help="Pfam HMM name or accession, e.g. Homeodomain or PF00046")
+    parser.add_argument("--evalue",    type=float, default=1e-5, help="Max full-sequence E-value for HMM hits (default: 1e-5)")
     return parser
 
 
@@ -574,25 +712,35 @@ def main():
         if args.proteome_id: print(f"Proteome: {args.proteome_id}")
         if args.go_id:       print(f"GO Term : {args.go_id}")
         if args.pfam_id:     print(f"Pfam ID : {args.pfam_id}")
-        print(f"{'='*60}\n")
 
-        records = retriever.get_proteins(
-            version     = args.version,
-            taxon_ids   = args.taxonomy,
-            proteome_id = args.proteome_id,
-            go_id       = args.go_id,
-            pfam_id     = args.pfam_id,
-        )
+        if args.hmm_name:
+            print(f"HMM    : {args.hmm_name} (E-value ≤ {args.evalue})")
+            print(f"{'='*60}\n")
+            records = retriever.get_proteins_by_hmm_hit(
+                version       = args.version,
+                hmm_query     = args.hmm_name,
+                evalue_cutoff = args.evalue,
+                taxon_ids     = args.taxonomy,
+            )
+            identifier = f"hmm_{args.hmm_name}"
+        else:
+            print(f"{'='*60}\n")
+            records = retriever.get_proteins(
+                version     = args.version,
+                taxon_ids   = args.taxonomy,
+                proteome_id = args.proteome_id,
+                go_id       = args.go_id,
+                pfam_id     = args.pfam_id,
+            )
+            identifier = "filtered_set"
+            if args.proteome_id:
+                identifier = args.proteome_id
+            elif args.taxonomy:
+                identifier = f"tax_{args.taxonomy[0]}"
 
         if not records:
             print("\n✗ No matching data found.")
             return
-
-        identifier = "filtered_set"
-        if args.proteome_id:
-            identifier = args.proteome_id
-        elif args.taxonomy:
-            identifier = f"tax_{args.taxonomy[0]}"
 
         retriever.export_fasta(
             records, args.version, identifier,
@@ -604,7 +752,7 @@ def main():
         print(f"\n✗ Database error: {err}")
         sys.exit(1)
     except Exception as e:
-        print(f"\n✗ Error: {e}")
+        print(f"\n Error: {e}")
         sys.exit(1)
     finally:
         retriever.close()
