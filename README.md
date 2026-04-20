@@ -126,7 +126,7 @@ hmm_search_results — optional analytical table for pyHMMER search results
 ```
 
 Foreign key relationships:
-```
+```mermaid
 erDiagram
   sequences {
     int seq_id PK
