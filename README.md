@@ -224,7 +224,7 @@ hmm_search_results {
   go_terms ||--o{ protein_go : "go_id"
   proteins ||--o{ protein_pfam : "accession+version"
   pfam_domains ||--o{ protein_pfam : "pfam_id"
-  proteins ||--o{ hmm_search_results : "accession+version"`
+  proteins ||--o{ hmm_search_results : "accession+version"
 
 ```
 ---
