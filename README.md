@@ -122,7 +122,7 @@ go_terms           — Gene Ontology master table (go_id, go_name, namespace, de
 protein_go         — protein ↔ GO term links, version-specific
 pfam_domains       — Pfam domain master table (pfam_id, pfam_name, description)
 protein_pfam       — protein ↔ Pfam domain links with positional and e-value data
-hmm_search_results — optional analytical table for pyHMMER search results`
+hmm_search_results — optional analytical table for pyHMMER search results
 ```
 
 Foreign key relationships:
