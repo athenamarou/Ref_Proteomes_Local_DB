@@ -1,4 +1,4 @@
-`## UniProt Reference Proteome Local Database
+## UniProt Reference Proteome Local Database
 
 ‼️**Status: Active Development / Under Optimization**
 
