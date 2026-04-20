@@ -186,14 +186,34 @@ erDiagram
     float e_value
     float bit_score
   }
-  hmm_search_results {
-    int id PK
-    varchar version
+hmm_search_results {
+    bigint id PK
+    varchar version FK
     varchar accession FK
+    int taxon_id
+    varchar proteome_id
+    varchar protein_name
     varchar hmm_name
-    float full_evalue
+    varchar hmm_accession
+    varchar hmm_type
+    double full_evalue
+    double full_score
+    double full_bias
+    int domain_number
+    int domain_count
+    double domain_evalue
+    double domain_score
+    double domain_bias
     int hmm_from
     int hmm_to
+    int ali_from
+    int ali_to
+    int env_from
+    int env_to
+    float hmm_coverage
+    float protein_coverage
+    float posterior_prob
+    timestamp search_date
   }
 
   proteomes ||--o{ proteins : "contains"
