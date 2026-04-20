@@ -13,6 +13,7 @@ The pipeline consists of two independent tools:
 
 - **`uniprot_sync_v7.py`** — downloads the UniProt reference proteome archive and streams it into a local MySQL database.
 - **`get_reference_uniprot_set_lib.py`** — retrieves protein sets from that database with flexible filters and exports them as FASTA files.
+- **`pyhmmer_hmmsearch.py`** - integrates MySQL queries and pyHMMER to perform hmmsearch across all the accessions for the local Reference Proteome Database built.
 
 The database schema is versioned, meaning multiple UniProt releases can coexist in the same instance without overwriting previous data. Sequence storage uses MD5-based deduplication so identical sequences shared across proteomes or versions are stored only once.
 
@@ -111,14 +112,15 @@ The pipeline creates 8 tables in the correct foreign-key dependency order. All `
 **Database Schema**
 
 ```
-sequences         — deduplicated amino-acid sequences (MD5 hash, auto-increment seq_id)
-proteomes         — one row per reference proteome (UP-prefixed ID → taxon_id)
-proteins          — versioned protein metadata; PRIMARY KEY (accession, version)
-sequence_changes  — records when a protein's sequence changes between versions
-go_terms          — Gene Ontology master table (go_id, go_name, namespace, definition)
-protein_go        — protein ↔ GO term links, version-specific
-pfam_domains      — Pfam domain master table (pfam_id, pfam_name, description)
-protein_pfam      — protein ↔ Pfam domain links with positional and e-value data
+sequences          — deduplicated amino-acid sequences (MD5 hash, auto-increment seq_id)
+proteomes          — one row per reference proteome (UP-prefixed ID → taxon_id)
+proteins           — versioned protein metadata; PRIMARY KEY (accession, version)
+sequence_changes   — records when a protein's sequence changes between versions
+go_terms           — Gene Ontology master table (go_id, go_name, namespace, definition)
+protein_go         — protein ↔ GO term links, version-specific
+pfam_domains       — Pfam domain master table (pfam_id, pfam_name, description)
+protein_pfam       — protein ↔ Pfam domain links with positional and e-value data
+hmm_search_results - hmm search results for PfamA profiles against the whole database
 ```
 
 Foreign key relationships:
@@ -281,31 +283,46 @@ A log entry is written to `update_history.log` in `BASE_PATH` on both success an
 ### 2. Retrieve a protein set
 
 ```bash
-python get_reference_uniprot_set_v4.py -version 2026_01 [filters]
+List all loaded versions:
 
-# List all available versions in your database
-python get_reference_uniprot_set.py -version 2026_01 --list-versions
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 --list-versions
+```
 
-# List all proteome IDs for a version
-python get_reference_uniprot_set.py -version 2026_01 --list-proteomes
+Retrieve the full human reference proteome:
 
-# Retrieve by Proteome ID (e.g. Human reference proteome)
-python get_reference_uniprot_set.py -version 2026_01 --proteome-id UP000005640
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 -taxonomy 9606
+```
 
-# Retrieve by Taxonomy ID
-python get_reference_uniprot_set.py -version 2026_01 -taxonomy 9606
+Retrieve proteins from multiple taxa:
 
-# Retrieve multiple taxa
-python get_reference_uniprot_set.py -version 2026_01 -taxonomy 9606 10090 10116
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 -taxonomy 9606 10090 10116
+```
 
-# Filter by GO term
-python get_reference_uniprot_set.py -version 2026_01 --go-id GO:0005634
+Retrieve all proteins with a Homeodomain hit (all taxa):
 
-# Filter by Pfam domain
-python get_reference_uniprot_set.py -version 2026_01 --pfam-id PF00870
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 --hmm-name Homeodomain
+```
 
-# Combine filters (e.g. human kinases)
-python get_reference_uniprot_set.py -version 2026_01 -taxonomy 9606 --pfam-id PF00069
+Retrieve human Homeodomain proteins with a strict E-value:
+
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 --hmm-name Homeodomain -taxonomy 9606 --evalue 1e-10
+```
+
+Retrieve by Pfam accession (prefix match — PF00046 matches PF00046.36):
+
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 --hmm-name PF00046
+```
+
+Write output to a specific directory:
+
+```bash
+python get_reference_uniprot_set_lib.py -version 2026_01 --hmm-name Homeodomain --output-dir ./fastas
 ```
 
 **Output:** A FASTA file in the current directory. Filename format: `uniprot_<identifier>_<version>.fasta`
@@ -318,7 +335,6 @@ FASTA header format:
 
 ---
 
----
 
 ## Performance Notes
 
@@ -333,7 +349,7 @@ FASTA header format:
 ```
 .
 ├── uniprot_sync_v7.py              # Sync pipeline
-├── get_reference_uniprot_set_v4.py # Retrieval tool
+├── get_reference_uniprot_set_lib.py # Retrieval tool
 ├── .env                            # DB credentials (not committed)
 └── README.md
 ```
