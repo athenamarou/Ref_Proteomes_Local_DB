@@ -233,17 +233,17 @@ hmm_search_results {
 
 ```
 UniProt FTP
-│
-▼
+    │
+    ▼
 UniProtDownloader          ← streams Reference_Proteomes_XXXX_XX.tar.gz
-│
-▼
+    │
+    ▼
 UniprotParser              ← parses .dat.gz flat files (BioPython + line scan)
-│                          extracts: proteins, GO terms, Pfam domains
-▼
+    │                          extracts: proteins, GO terms, Pfam domains
+    ▼
 DataBaseManager            ← bulk upserts into MySQL schema
-│                          sequence deduplication via MD5 hash
-▼
+    │                          sequence deduplication via MD5 hash
+    ▼
 MySQL Database
 │
 ├──► pyhmmer_hmmsearch     ← [Optional] Multi-threaded HMM profiling
