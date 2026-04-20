@@ -408,7 +408,7 @@ FASTA header format:
 ├── get_reference_uniprot_set_lib.py # Retrieval tool
 ├── pyhmmer_hmmsearch.py             # Optional HMM search pipeline
 ├── .env                             # DB credentials (not committed)
-└── README.md`
+└── README.md
 ```
 
 The NAS archive and log file are stored outside this repository:
@@ -416,7 +416,7 @@ The NAS archive and log file are stored outside this repository:
 ```
 /mnt/cglab.shared/Data/DBs/Uniprot/
 ├── Reference_Proteomes_2026_01.tar.gz
-└── update_history.log`
+└── update_history.log
 ```
 
 ---
@@ -432,4 +432,4 @@ Eukaryota/UP000005640/UP000005640_9606.dat.gz
 ...
 ```
 
-The sync script streams only canonical sequence files (`.dat.gz`), skipping `_additional` files (isoforms) and macOS metadata prefixes (`._`).
+The sync script streams only canonical sequence files (`.dat.gz`), skipping `_additional` files (isoforms).
