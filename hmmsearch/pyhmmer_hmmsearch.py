@@ -122,9 +122,9 @@ class SequenceStreamer:
 
         self.config = {
             "host": os.getenv("DB_HOST", "localhost"),
-            "user": os.getenv("DB_USER", "cglab_user"),
+            "user": os.getenv("DB_USER", "user"),
             "password": os.getenv("DB_PASSWORD", ""),
-            "database": os.getenv("DB_NAME", "uniprot_db_cglab"),
+            "database": os.getenv("DB_NAME", "uniprot_db"),
         }
 
         # -----CHECKPOINTING-----
