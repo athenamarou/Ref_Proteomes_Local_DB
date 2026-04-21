@@ -1,7 +1,11 @@
 # UniProt Reference Proteome Pipeline — Python Dependencies
 # Install with: pip install -r requirements.txt
 
+Python 3.8+
+MySQL 8.0+
 biopython>=1.81
 mysql-connector-python>=8.0.33
 requests>=2.28.0
 python-dotenv>=1.0.0
+pyhmmer
+psutil
