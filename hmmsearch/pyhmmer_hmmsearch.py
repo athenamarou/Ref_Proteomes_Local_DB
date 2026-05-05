@@ -70,6 +70,10 @@ def run_pyhmmer_hmmsearch(hmm_models, protein_rows, num_cpus=32):
         safe_hmm_name = (
             raw_hmm_name.decode() if isinstance(raw_hmm_name, bytes) else raw_hmm_name
         )
+        raw_hmm_acc = hits.query.accession
+        safe_hmm_acc = (
+            raw_hmm_acc.decode() if isinstance(raw_hmm_acc, bytes) else raw_hmm_acc
+        ) if raw_hmm_acc else None
 
         for hit in hits:
             acc = hit.name
@@ -98,6 +102,7 @@ def run_pyhmmer_hmmsearch(hmm_models, protein_rows, num_cpus=32):
                         "env_to": domain.env_to,
                         "hmm_from": domain.alignment.hmm_from,
                         "hmm_to": domain.alignment.hmm_to,
+                        "hmm_accession": safe_hmm_acc,
                     }
                 )
     return batch_results
@@ -284,12 +289,12 @@ class HMMResultsImporter:
         cursor = conn.cursor()
 
         insert_sql = """
-            INSERT INTO hmm_search_results(
+            INSERT IGNORE INTO hmm_search_results(
                 version, accession, taxon_id, proteome_id, protein_name,
                 hmm_name, full_evalue, full_score, hmm_type,
                 domain_number, domain_count, domain_evalue, domain_score,
-                ali_from, ali_to, hmm_from, hmm_to, env_from, env_to
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pfam', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ali_from, ali_to, hmm_from, hmm_to, env_from, env_to,hmm_accession
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pfam', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         try:
@@ -313,6 +318,7 @@ class HMMResultsImporter:
                     r["hmm_to"],
                     r["env_from"],
                     r["env_to"],
+                    r["hmm_accession"]
                 )  # Ensure these match the dictionary keys
                 for r in batch_results
             ]
@@ -426,8 +432,7 @@ def main():
 
             # Checkpoint the accession belonging to this chunk specifically,
 
-            streamer.last_accession = last_acc
-            streamer._save_checkpoint()
+            streamer.checkpoint_file.write_text(last_acc)
 
             del results  # free result memory immediately after commit
             gc.collect()  # insert_q maxsize=2 means up to 2 result sets could sit here
