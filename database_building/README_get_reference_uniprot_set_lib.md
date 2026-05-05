@@ -121,6 +121,22 @@ Retrieve by Pfam accession (prefix match — PF00046 matches PF00046.36):
 ```bash
 python get_reference_uniprot_set_lib.py -version 2026_01 --hmm-name PF00046
 ```
+Retrieve hmm PFAM Domains based on protein accession
+Single protein
+
+```bash
+python get_reference_uniprot_set_lib_fin.py -version 2026_01 --domains P04637
+```
+
+Multiple proteins
+```bash
+python get_reference_uniprot_set_lib_fin.py -version 2026_01 --domains P04637 P10275 Q8BFR5
+```
+
+With E-value filter
+```bash
+python get_reference_uniprot_set_lib_fin.py -version 2026_01 --domains P04637 --evalue 1e-10
+```
 
 Write output to a specific directory:
 
