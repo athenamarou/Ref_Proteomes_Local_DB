@@ -889,8 +889,8 @@ def _build_parser():
     parser.add_argument(
         "--evalue",
         type=float,
-        default=1e-5,
-        help="Max full-sequence E-value for HMM hits (default: 1e-5)",
+        default=None,
+        help=help="Max full-sequence E-value (default: no filter for --domains, 1e-5 for --hmm-name)"),
     )
     parser.add_argument(
         "--domains",
